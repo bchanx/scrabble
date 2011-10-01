@@ -35,7 +35,7 @@ class Scrabble:
 		self.letters = {}
 		self.letters_remaining = 0
 		for l in letters:
-			count, points = config.get('letters', l).split(',')
+			count, points = config.get('letters', l).split(';')
 			self.letters[l] = {}
 			self.letters[l]['count'] = int(count)
 			self.letters[l]['points'] = int(points)
