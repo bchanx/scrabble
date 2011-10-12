@@ -134,46 +134,18 @@ class Scrabble:
 			return str(new_row) + '-' + str(col)
 
 
-	# output current letters in hand
-	def printLetters(self, player):
-		print player + ': ' + str(self.letters_in_hand[player])
-
-
-	# prettify current scrabble board and output
-	def printBoard(self):
-		for row in range(0, self.board_size):
-			for i in range (0, 2):
-				output = '|'
-				for col in range(0, self.board_size):
-					tile = str(row) + '-' + str(col)
-					if i == 1: output = output + '____|'
-					elif tile in self.tiles_in_play: output = output + self.tiles_in_play[tile]['letter'].upper() + '   |'
-					elif tile in self.double_letter: output = output + '*   |'
-					elif tile in self.triple_letter: output = output + '#   |'
-					elif tile in self.double_word: output = output + 'x2  |'
-					elif tile in self.triple_word: output = output + 'x3  |'
-					else: output = output + '    |'
-				print output
-
-
 	# get next optimal move
 	def getOptimalMove(self, player):
-		optimalPoints = 0
-		optimalWords = []
+		optimalMap = {}
+		optimalMap['points'] = 0
+		optimalMap['words'] = []
 
 		# no tiles or words in play
 		if not self.tiles_in_play:
-			creatable_words = self._getCreatableWords('7-7', self.letters_in_hand[player])
-			if DEBUG: print creatable_words
-			# check placement
-			for w, t, d, l in creatable_words:
-				points = self._checkWordScore(self.letters_in_hand[player], w, t, d)
-				if points > optimalPoints:
-					del optimalWords[:]
-					optimalWords.append((w, t, d, l))
-					optimalPoints = points
-				elif points == optimalPoints:
-					optimalWords.append((w, t, d, l))
+			valid_placements = self._getCreatableWords('7-7', self.letters_in_hand[player])
+			if DEBUG: print valid_placements
+			# get optimal words and points
+			self._getOptimalPlacement(optimalMap, valid_placements, self.letters_in_hand[player])
 		else:
 			# check current tiles in play
 			for tile in self.tiles_in_play:
@@ -186,18 +158,9 @@ class Scrabble:
 						else: direction = DOWN
 						valid_placements = self._checkPlacement(pivot, word, tile, direction, self.letters_in_hand[player])
 						if valid_placements:
-							if DEBUG: print 'tile: '+str(tile) + '  letter: '+str(pivot) + '    '+str(valid_placements)
-							for w, t, d, l in valid_placements:
-								if (w, t, d, l) not in optimalWords:
-									points = self._checkWordScore(self.letters_in_hand[player], w, t, d)
-									if DEBUG: print 'word: '+str(w)+',  tile: ' + str(t) + ', dir: '+ str(d) + ',  points: ' + str(points)
-									if points > optimalPoints:
-										del optimalWords[:]
-										optimalWords.append((w, t, d, l))
-										optimalPoints = points
-									elif points == optimalPoints:
-										optimalWords.append((w, t, d, l))
-
+							# get optimal words and points
+							self._getOptimalPlacement(optimalMap, valid_placements, self.letters_in_hand[player])
+			
 			# check current words in play
 			for word_played in self.words_in_play:
 				word_dict = self.possible_words[self.words_in_play[word_played]['shortest']]
@@ -205,26 +168,34 @@ class Scrabble:
 				for word in word_dict:
 					if word_played != word and word_played in word:
 						word_list.append(word)
+				# go through sub list of possible words
 				for word in word_list:
-					# check placement
 					tile = self.words_in_play[word_played]['start']
 					direction = self.words_in_play[word_played]['direction']
 					valid_placements = self._checkPlacement(word_played, word, tile, direction, self.letters_in_hand[player])
+					valid_sub_placements = []
 					if valid_placements:
 						for w, t, d, l in valid_placements:
-							# (TODO) if letters used == 1, check for additional possible words to make on new pivot
-							if (w, t, d, l) not in optimalWords:
-								points = self._checkWordScore(self.letters_in_hand[player], w, t, d)
-								if DEBUG: print 'word: '+str(w)+',  tile: ' + str(t) + ', dir: '+ str(d) + ',  points: ' + str(points)
-								if points > optimalPoints:
-									del optimalWords[:]
-									optimalWords.append((w, t, d, l))
-									optimalPoints = points
-								elif points == optimalPoints:
-									optimalWords.append((w, t, d, l))
-
-		print '======== BEST WORDS: '+str(optimalWords) + '       MOST POINTS: '+str(optimalPoints)
-		return (optimalPoints, optimalWords)
+							# if letters used == 1, check for additional possible words to make on new pivot
+							if len(l) == 1:
+								sub_pivot = l[0]
+								if t in self.tiles_in_play: sub_tile = self._getPosition(t, len(w)-1, direction)
+								else: sub_tile = t
+								sub_direction = self._getOtherDirection(direction)
+								sub_letters_in_hand = list(self.letters_in_hand[player])
+								sub_letters_in_hand.remove(sub_pivot)
+								sub_dict = self.possible_words[sub_pivot]
+								for sub_word in sub_dict:
+									sub_placements = self._checkPlacement(sub_pivot, sub_word, sub_tile, sub_direction, sub_letters_in_hand)
+									if sub_placements:
+										for sw, st, sd, sl in sub_placements:
+											sl.extend(l)
+											valid_sub_placements.append((sw, st, sd, sl))
+						# add valid sub placements to placement list
+						valid_placements.extend(valid_sub_placements)
+						# get optimal words and points
+						self._getOptimalPlacement(optimalMap, valid_placements, self.letters_in_hand[player])
+		return optimalMap
 
 
 	# get all creatable words from letters in hand
@@ -239,6 +210,20 @@ class Scrabble:
 				else:
 					creatable_words.append((word, start_tile, ACROSS, letters_used))
 		return creatable_words
+
+
+	# find optimal placement
+	def _getOptimalPlacement(self, optimalMap, valid_placements, letters_in_hand):
+		for w, t, d, l in valid_placements:
+			if (w, t, d, l) not in optimalMap['words']:
+				l.sort()
+				points = self._checkWordScore(letters_in_hand, w, t, d)
+				if points > optimalMap['points']:
+					del optimalMap['words'][:]
+					optimalMap['words'].append((w, t, d, l))
+					optimalMap['points'] = points
+				elif points == optimalMap['points']:
+					optimalMap['words'].append((w, t, d, l))
 
 
 	# returns letters_used if letters_needed is a subset of letters_in_hand, False otherwise.
@@ -436,6 +421,39 @@ class Scrabble:
 		return tile_score
 
 
+	# return current letters in hand
+	def getLetters(self, player):
+		return self.letters_in_hand[player]
+
+
+	# prettify current scrabble board and output
+	def printBoard(self):
+		output = '     '
+		for col in range(0, self.board_size):
+			output += str(col)
+			if len(str(col)) == 1: output += '    '
+			else: output += '   '
+		print output + '\n'
+
+		for row in range(0, self.board_size):
+			for i in range (0, 2):
+				if i == 0:
+					output = str(row)
+					if len(str(row)) == 1: output += '   |'
+					else: output += '  |'
+				else: output = '    |'
+				for col in range(0, self.board_size):
+					tile = str(row) + '-' + str(col)
+					if i == 1: output += '____|'
+					elif tile in self.tiles_in_play: output += self.tiles_in_play[tile]['letter'].upper() + '   |'
+					elif tile in self.double_letter: output += '*   |'
+					elif tile in self.triple_letter: output += '#   |'
+					elif tile in self.double_word: output += 'x2  |'
+					elif tile in self.triple_word: output += 'x3  |'
+					else: output += '    |'
+				print output
+
+
 	# place a word onto the board
 	# (TODO) add word placement function
 	def placeWord(self, word, tile, direction):
@@ -445,9 +463,10 @@ class Scrabble:
 		# get new tiles
 		return
 
+
 # (TODO) add user input shell capability
 if __name__ == '__main__':
 	scrabble = Scrabble()
 	scrabble.printBoard()
-	scrabble.printLetters('player0')
-	scrabble.getOptimalMove('player0')
+	print 'letters: '+ str(scrabble.getLetters('player0'))
+	print scrabble.getOptimalMove('player0')
