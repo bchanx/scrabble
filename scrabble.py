@@ -142,18 +142,19 @@ class Scrabble:
 
 		# no tiles or words in play
 		if not self.tiles_in_play:
+			if DEBUG: print '== checking no tiles or words in play =='
 			valid_placements = self._getCreatableWords('7-7', self.letters_in_hand[player])
-			if DEBUG: print valid_placements
-			# get optimal words and points
-			self._getOptimalPlacement(optimalMap, valid_placements, self.letters_in_hand[player])
+			if valid_placements:
+				# get optimal words and points
+				self._getOptimalPlacement(optimalMap, valid_placements, self.letters_in_hand[player])
 		else:
 			# check current tiles in play
+			if DEBUG: print '== checking current tiles in play =='
 			for tile in self.tiles_in_play:
 				if not (self.tiles_in_play[tile][ACROSS] and self.tiles_in_play[tile][DOWN]):
 					pivot = self.tiles_in_play[tile]['letter']
 					possible_words = self.possible_words[pivot]
 					for word in possible_words:
-						if DEBUG: print 'checking tile: '+ str(tile) + ',  letter: '+str(pivot)
 						if not self.tiles_in_play[tile][ACROSS]: direction = ACROSS
 						else: direction = DOWN
 						valid_placements = self._checkPlacement(pivot, word, tile, direction, self.letters_in_hand[player])
@@ -162,6 +163,7 @@ class Scrabble:
 							self._getOptimalPlacement(optimalMap, valid_placements, self.letters_in_hand[player])
 			
 			# check current words in play
+			if DEBUG: print '== checking current words in play =='
 			for word_played in self.words_in_play:
 				word_dict = self.possible_words[self.words_in_play[word_played]['shortest']]
 				word_list = []
@@ -191,6 +193,7 @@ class Scrabble:
 										for sw, st, sd, sl in sub_placements:
 											sl.extend(l)
 											valid_sub_placements.append((sw, st, sd, sl))
+
 						# add valid sub placements to placement list
 						valid_placements.extend(valid_sub_placements)
 						# get optimal words and points
@@ -215,9 +218,10 @@ class Scrabble:
 	# find optimal placement
 	def _getOptimalPlacement(self, optimalMap, valid_placements, letters_in_hand):
 		for w, t, d, l in valid_placements:
+			l.sort()
 			if (w, t, d, l) not in optimalMap['words']:
-				l.sort()
 				points = self._checkWordScore(letters_in_hand, w, t, d)
+				if DEBUG: print '\tPOINTS: '+str(points)+'\tWORD: '+str(w)+'\tTILE: '+str(t)+'\tDIR: '+str(d)+'\tLETTERS_USED: '+str(l)
 				if points > optimalMap['points']:
 					del optimalMap['words'][:]
 					optimalMap['words'].append((w, t, d, l))
@@ -342,12 +346,15 @@ class Scrabble:
 
 
 	# find the score of a word placement
+	# (TODO) Add tile placement metadata for letters_used
 	def _checkWordScore(self, letters_in_hand, word, tile, direction):
 		tmpletters = list(letters_in_hand)
 		other_direction = self._getOtherDirection(direction)
 		main_multiplier = 1
 		main_points = side_points = bonus_points = 0
-		for letter in word:
+		for i in range(0, len(word)):
+			letter = word[i]
+
 			# letter already exists on board, grab letter face value
 			if tile in self.tiles_in_play:
 				# ERROR: letter in word doesn't match letter on board (should have failed placement check)
@@ -357,18 +364,24 @@ class Scrabble:
 				tile = self._getPosition(tile, 1, direction)
 				continue
 
-			# (TODO) have to choose blanks based on greedyness
-			# get letter value, letter exists in hand
+			# choose which letter from hand to use for optimal points
 			if letter in tmpletters:
-				current_letter_points = self.letters[letter]['points'] * self._getLetterMultiplier(tile)
-				tmpletters.remove(letter)
+				letter_used = letter
+				if 'blank' in tmpletters:
+					remaining_word = word[i:]
+					if remaining_word.count(letter) > tmpletters.count(letter):
+						if self._useBlankTile(remaining_word, letter, tile, direction):
+							letter_used = 'blank'
 			# use a blank letter tile
 			elif 'blank' in tmpletters:
-				current_letter_points = 0
-				tmpletters.remove('blank')
+				letter_used = 'blank'
 			# ERROR: impossible to create word (should have failed placement check)
 			else:
 				return 0
+
+			# get current letter points and remove letter used from hand
+			current_letter_points = self.letters[letter_used]['points'] * self._getLetterMultiplier(tile)
+			tmpletters.remove(letter_used)
 
 			# update word multiplier
 			current_multiplier = self._getWordMultiplier(tile)
@@ -396,6 +409,53 @@ class Scrabble:
 		if len(letters_in_hand) == 7 and len(tmpletters) == 0:
 			bonus_points = 50
 		return main_points + side_points + bonus_points
+
+
+	# choose whether to use regular or blank tile
+	def _useBlankTile(self, remaining_word, letter, tile, direction):
+		other_direction = self._getOtherDirection(direction)
+		current_bonus = self._getTileBonus(tile, other_direction)
+		for l in remaining_word[1:]:
+			tile = self._getPosition(tile, 1, direction)
+			if l == letter and tile not in self.tiles_in_play:
+				future_bonus = self._getTileBonus(tile, other_direction)
+				if future_bonus > current_bonus:
+					return True
+		return False
+
+
+	# get tile bonus based on tile multiplier and how many words it is in
+	def _getTileBonus(self, tile, other_direction):
+		if self._tileInTwoWords(tile, other_direction):
+			if self._tileIsLetterMultiplier(tile):
+				return self._getLetterMultiplier(tile) * 2
+			elif self._tileIsWordMultiplier(tile): 
+				return self._getWordMultiplier(tile)
+		else:
+			if self._tileIsLetterMultiplier(tile): 
+				return self._getLetterMultiplier(tile)
+		return 1
+
+
+	# check whether a tile is part of two words (across and down)
+	def _tileInTwoWords(self, tile, other_direction):
+		before = self._getPosition(tile, -1, other_direction)
+		after = self._getPosition(tile, 1, other_direction)
+		if before in self.tiles_in_play or after in self.tiles_in_play:
+			return True
+		return False
+
+
+	# check whether tile is a letter multiplier
+	def _tileIsLetterMultiplier(self, tile):
+		if tile in self.triple_letter or tile in self.double_letter: return True
+		return False
+
+
+	# check whether tile is a word multiplier
+	def _tileIsWordMultiplier(self, tile):
+		if tile in self.triple_word or tile in self.double_word: return True
+		return False
 
 
 	# return letter multiplier
@@ -426,22 +486,22 @@ class Scrabble:
 		return self.letters_in_hand[player]
 
 
-	# prettify current scrabble board and output
-	def printBoard(self):
+	# return prettified scrabble board
+	def getBoard(self):
 		output = '     '
 		for col in range(0, self.board_size):
 			output += str(col)
 			if len(str(col)) == 1: output += '    '
 			else: output += '   '
-		print output + '\n'
+		output += '\n\n'
 
 		for row in range(0, self.board_size):
 			for i in range (0, 2):
 				if i == 0:
-					output = str(row)
+					output += str(row)
 					if len(str(row)) == 1: output += '   |'
 					else: output += '  |'
-				else: output = '    |'
+				else: output += '    |'
 				for col in range(0, self.board_size):
 					tile = str(row) + '-' + str(col)
 					if i == 1: output += '____|'
@@ -451,7 +511,8 @@ class Scrabble:
 					elif tile in self.double_word: output += 'x2  |'
 					elif tile in self.triple_word: output += 'x3  |'
 					else: output += '    |'
-				print output
+				output += '\n'
+		return output
 
 
 	# place a word onto the board
@@ -467,6 +528,6 @@ class Scrabble:
 # (TODO) add user input shell capability
 if __name__ == '__main__':
 	scrabble = Scrabble()
-	scrabble.printBoard()
-	print 'letters: '+ str(scrabble.getLetters('player0'))
-	print scrabble.getOptimalMove('player0')
+	print scrabble.getBoard()
+	print 'letters in hand: '+ str(scrabble.getLetters('player0'))
+	print 'optimal move: '+str(scrabble.getOptimalMove('player0'))
