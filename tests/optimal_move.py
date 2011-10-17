@@ -124,16 +124,22 @@ def one_blankTileLast():
 	assert opt['points'] == 20, opt['points']
 
 # two words on the board
-# possible word intersects both but side words are invalid
+# possible word intersects one and runs alongside the other, but side words are invalid
 def two_invalidIntersect():
 	opt = setup('two_invalidIntersect')
 	assert opt['points'] == 0, opt['points']
 
 # two words on the board
-# possible word intersects both and all side words are valid
+# possible word intersects one and runs alongside the other, and all side words are valid
 def two_validIntersect():
 	opt = setup('two_validIntersect')
 	assert opt['points'] == 7, opt['points']
+
+# two words on the board 'st[a]rt' '[s]top'
+# possible word intersects both words through the middle 'pl[a]nk[s]'
+def two_intersectBoth():
+	opt = setup('two_intersectBoth')
+	assert opt['points'] == 28, opt['points']
 
 # two words on the board 'the' 'ore'
 # possible word fits in between two existing words, 'therefore'
@@ -173,6 +179,7 @@ def two_startOneEndSecondBlankLast():
 
 
 if __name__ == '__main__':
+	'''
 	empty_noPossibleWords()
 	empty_fourLetterWord()
 	empty_sixLetterWord()
@@ -199,4 +206,6 @@ if __name__ == '__main__':
 	two_startOneEndSecond()
 	two_startOneEndSecondBlankFirst()
 	two_startOneEndSecondBlankLast()
+	'''
+	two_intersectBoth()
 
