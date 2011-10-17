@@ -191,16 +191,16 @@ class Scrabble:
 					# add sideword to words_in_play
 					if side_word not in self.words_in_play:
 						self.words_in_play[side_word] = {}
-						self.words_in_play[side_word]['placements'] = {}
+						self.words_in_play[side_word]['placements'] = []
 						self.words_in_play[side_word]['shortest'] = self._getShortestLetter(word)
-					self.words_in_play[side_word]['placements'][side_start_tile] = other_direction
+					self.words_in_play[side_word]['placements'].append(side_start_tile+';'+other_direction)
 			# update tile position
 			tile_pos = self._getPosition(tile_pos, 1, direction)
 		if word not in self.words_in_play:
 			self.words_in_play[word] = {}
-			self.words_in_play[word]['placements'] = {}
+			self.words_in_play[word]['placements'] = []
 			self.words_in_play[word]['shortest'] = self._getShortestLetter(word)
-		self.words_in_play[word]['placements'][tile] = direction
+		self.words_in_play[word]['placements'].append(tile+';'+direction)
 
 
 	# update tiles_in_play and words_in_play with new data
@@ -217,8 +217,9 @@ class Scrabble:
 				tile_pos = self._getPosition(tile_pos, 1, other_direction)
 			# do cleanup in self.words_in_play
 			if old_word in self.words_in_play:
-				if old_start_pos in self.words_in_play[old_word]['placements']:
-					del self.words_in_play[old_word]['placements'][old_start_pos]
+				placement_key = old_start_pos+';'+other_direction
+				if placement_key in self.words_in_play[old_word]['placements']:
+					self.words_in_play[old_word]['placements'].remove(placement_key)
 					if not self.words_in_play[old_word]['placements']:
 						del self.words_in_play[old_word]
 		# else tile is only a letter
@@ -303,9 +304,8 @@ class Scrabble:
 						word_list.append(word)
 				# go through sub list of possible words
 				for word in word_list:
-					for placement in self.words_in_play[word_played]['placements']:
-						tile = placement
-						direction = self.words_in_play[word_played]['placements'][tile]
+					for placement_key in self.words_in_play[word_played]['placements']:
+						tile, direction = placement_key.split(';')
 						valid_word_placements = self._checkPlacement(word_played, word, tile, direction, letters_in_hand)
 						if valid_word_placements:
 							for w, t, d, l in valid_word_placements:
