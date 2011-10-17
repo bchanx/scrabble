@@ -179,7 +179,6 @@ def two_startOneEndSecondBlankLast():
 
 
 if __name__ == '__main__':
-	'''
 	empty_noPossibleWords()
 	empty_fourLetterWord()
 	empty_sixLetterWord()
@@ -200,12 +199,11 @@ if __name__ == '__main__':
 	one_doubleWordAtEnd()
 	two_invalidIntersect()
 	two_validIntersect()
+	two_intersectBoth()
 	two_betweenWords()
 	two_betweenWordsOneLetter()
 	two_bothWords()
 	two_startOneEndSecond()
 	two_startOneEndSecondBlankFirst()
 	two_startOneEndSecondBlankLast()
-	'''
-	two_intersectBoth()
 
