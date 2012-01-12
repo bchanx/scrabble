@@ -1,3 +1,9 @@
+'''
+Copyright © 2011-2012. All Rights Reserved.
+Author: Brian Chan
+Contact: bchanx@gmail.com
+'''
+
 #!/usr/bin/env python
 
 import os
